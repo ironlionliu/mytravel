@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<meta charset="utf-8" name="viewport" content="width=device-width,initial-scale=0.36,maximum-scale=0.36,minimum-scale=0.36,user-scalable=no"/>
+<head>
+    <title>风马牛羊云川草</title>
+    <style>
+        *{
+            padding: 0;
+            margin: 0;
+        }
+        .earth{
+            margin: 0 auto;
+            width: 960px;
+            height: 960px;
+            border:2px solid;
+            border-radius:0px;
+            over-flow: hidden;
+        }
+        .point{
+            width: 10px;
+            height: 10px;
+            border: 2px solid;
+            border-radius: 5px;
+            z-index: 1000;
+            background: #000;
+        }
+        #city{
+            margin: 60px auto;
+            text-align:center;
+            line-height: 160px;
+            width: 240px;
+            height: 160px;
+            font-size: 60px;
+            background-color: #fcc;
+            border-radius: 35px;
+        }
+        #city:hover{
+            cursor: pointer;
+        }
+        #travels{
+            margin: 60px auto;
+            padding: 30px;
+            text-align:left;
+            line-height: 70px;
+            width: 940px;
+            font-size: 35px;
+            background-color: #99f;
+            border-radius: 35px;
+        }
+    </style>
+</head>
+
+
+<body>
+	<div class="earth" id="testzrzr">
+	</div>
+	<div id="city">下一城</div>
+	<div id="travels">
+		游记
+	</div>
+</body>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://d3js.org/queue.v1.min.js"></script>
+<script src="http://d3js.org/topojson.v1.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha256-k2WSCIexGzOj3Euiig+TlR8gA0EmPjuc79OEeY5L45g=" crossorigin="anonymous"></script>
+<script src="http://s1.bdstatic.com/r/www/cache/ecom/esl/2-0-4/esl.js"></script>
+<script src="//cdn.bootcss.com/EaselJS/0.8.0/easeljs.min.js" charset="utf-8"></script>
+
+<script>
+require.config({
+	baseUrl: "./zrender/zrender/src",
+    packages: [
+        {
+            name: 'zrender',
+            location: './',
+            main: 'zrender'
+        }
+    ]
+});
+</script>
+<script>
+var title = d3.select("h1");
+queue()
+    .defer(d3.json, "world110m.json")
+    .defer(d3.tsv, "worldcountrynames.tsv")
+    .defer(d3.tsv, "trip.tsv")
+    .defer(d3.tsv, "img.tsv")
+    .await(ready);
+//function ready1(){alert("albb")}
+function ready(error, world, names, cities, imgs) {
+	require(
+	['zrender','zrender/shape/Text','zrender/shape/Star','zrender/shape/Circle','zrender/shape/Image','zrender/tool/color','Layer','Storage'],
+	function(zrender,text,star,circle,image,color,layer,storage) {
+		var zr = zrender.init(document.getElementById("testzrzr"));
+		var TextShape = text;
+		var StarShape = star;
+		var CircleShape = circle;
+		var ImageShape = image;
+		var myroot = document.getElementById("layer");
+		var width = 960,
+			height = 960;
+
+
+		var myglobal = {};
+		myglobal.shapeid = null;
+		myglobal.text = ['北京出发(1)','秦皇岛，无照片','沈阳，无照片','长春，无照片','哈尔滨(3)，点击翻页','海拉尔(2)点击翻页','额尔古纳(10)，点击翻页','黑山头(8)，点击翻页','满洲里(8)，点击翻页','呼伦湖(8)，点击翻页'];
+		myglobal.img = imgs;
+		//myglobal.img = imgs;
+		var tripText = new TextShape({
+			style : {
+				x : 300,
+				y : 850,
+				brushType : 'fill',
+				color : '#000',
+				shadowColor : '#000',
+				lineWidth : 1,
+				text : 'zrender',
+				textFont : 'normal 40px verdana',
+				textAlign : 'center',
+				textBaseline : 'top'
+			},
+			draggable : false,
+			zlevel : 1005,
+		})
+		
+		var projection = d3.geo.orthographic()
+			.translate([width / 2, height / 2])
+			.scale(width / 0.8 - 20)
+			.clipAngle(90)
+			.precision(0.6);
+		var canvas = d3.select("canvas")
+			.attr("width", width)
+			.attr("height", height)
+			.attr("id", "demoCanvas")
+			.attr("style", "background-color:rgba(166,194,222,0.8)");
+		var c = zr.painter.getLayer(10).ctx;
+		
+		var path = d3.geo.path()
+			.projection(projection)
+			.context(c);
+		if (error) throw error;
+		var globe = {type: "Sphere"},
+		land = topojson.feature(world, world.objects.land),
+		countries = topojson.feature(world, world.objects.countries).features,
+		borders = topojson.mesh(world, world.objects.countries, function(a, b) { return a !== b; }),
+		i = -1,
+		n = countries.length;
+		countries = countries.filter(function(d) {
+			return names.some(function(n) {
+				if (d.id == n.id) return d.name = n.name;
+			});
+		}).sort(function(a, b) {
+			return a.name.localeCompare(b.name);
+		});
+		countries = countries.slice(31,35);
+		n = countries.length;
+		function drawRoute(projection, cities, step){
+			zr.clear();
+			transformPoint(projection, cities);
+			var c1 = zr.painter.getLayer(18).ctx;
+			c1.beginPath();
+			c1.moveTo(cities[0].proLocation[0], cities[0].proLocation[1]);
+			zr.addShape(new StarShape({
+			    style : {
+			        x : cities[0].proLocation[0],
+			        y : cities[0].proLocation[1],
+			        r : 15,
+			        n : 5,
+			        lineJoin : 'round',
+			        brushType : 'both',
+			        color : '#f00',
+			        strokeColor : '#f00',   // getColor from default palette
+			        lineWidth : 2
+			    },
+			    zlevel : 1000,
+			    hoverable : false,   // default true
+			    draggable : false,
+			    clickable : true,
+			    onclick : function(){
+			    	tripText.style.text = myglobal.text[0];
+			    	if(myglobal.shapeid){
+			    		zr.delShape(myglobal.shapeid);
+			    	}
+			    	zr.addShape(tripText);
+			    	myglobal.shapeid = tripText.id;
+			    }
+			}));
+
+			for(var i=1; i <= step; i++){
+				c1.lineTo(cities[i].proLocation[0], cities[i].proLocation[1]);
+				zr.addShape(new CircleShape({
+					style : {
+						x : cities[i].proLocation[0],
+						y : cities[i].proLocation[1],
+						r : 10,
+						color : '#ff0',          // rgba supported
+						strokeColor : '#000',  // getColor from default palette
+						lineWidth : 3,
+						text : cities[i].city,
+						textPosition : 'right',
+						textFont : 'bold 18px verdana'
+						//textColor : '#000'
+					},
+					zlevel : 1000,
+					draggable: false,
+					clickable : true,
+					selfindex : i,
+				    onclick : function(){
+				    	tripText.style.text = myglobal.text[this.selfindex];
+				    	if(myglobal.shapeid){
+				    		zr.delShape(myglobal.shapeid);
+				    	}
+				    	zr.addShape(tripText);
+				    	myglobal.shapeid = tripText.id;
+				    }
+				}));/**/
+			}
+			c1.strokeStyle = "blue";
+			c1.stroke();
+		}
+		function transformPoint(projection, cities){
+			for(var i = 0; i < cities.length; i++){
+				cities[i].location = [cities[i].longitude, cities[i].latitude];
+				cities[i].proLocation = projection(cities[i].location);
+				
+			}
+		}
+		n = cities.length;
+		transformPoint(projection,cities);
+		function mytransition(step) {
+			i = step;
+			var city;
+			d3.transition()
+			.duration(600)
+			.tween("rotate", function(){
+				r = d3.interpolate(projection.rotate(), [-cities[i].location[0], -cities[i].location[1]]);
+				return function(t) {
+					var scale = 0.3;
+					projection.scale(width / scale - 20);
+					projection.rotate(r(t));
+					drawRoute(projection,cities,i)
+					if(myglobal.img[i].indexs.length){
+						var imgindex = 0;//myglobal.img[i][0];
+						var imgnum = myglobal.img[i].indexs.length;
+
+
+						//console.log(imgs);
+						//alert(imgs[i].city+imgs[i].imgindex[1])
+
+						zr.addShape(new ImageShape({
+						    style : {
+						        x : cities[i].proLocation[0]-450,
+						        y : cities[i].proLocation[1]-337,
+						        image : './images/' + myglobal.img[i].city + '/' + myglobal.img[i].indexs[imgindex] + '.jpg',
+						        width : 450,
+						        height : 337
+						    },
+						    clickable : true,
+						    onclick : function(){
+						    	if(imgindex < imgnum - 1){
+						    		imgindex = imgindex + 1;
+						    		var _index = myglobal.img[i][imgindex];
+						    		this.style.image = './images/' + myglobal.img[i].city + '/' + myglobal.img[i].indexs[imgindex] + '.jpg';	
+						    	}else if(imgindex == imgnum - 1){
+						    		imgindex = imgindex + 1;
+						    		var _index = myglobal.img[i][0];
+						    		this.style.image = './images/' + myglobal.img[i].city + '/' + myglobal.img[i].indexs[imgindex] + '.jpg';	
+						    	}
+						    	
+						    },
+						    zlevel : 10000,
+						    draggable : false
+						}));
+					}
+
+					tripText.style.text = myglobal.text[i];
+					if(myglobal.shapeid){
+						zr.delShape(myglobal.shapeid);
+				    }
+				    zr.addShape(tripText);
+				    myglobal.shapeid = tripText.id;
+				    console.log(cities[i]);
+				    $("#travels").html(cities[i].traveltext);
+
+
+
+					c.clearRect(0, 0, width, height);
+					c.fillStyle = "#acc", c.beginPath(), path(land), c.fill();
+					c.fillStyle = "#caa", c.beginPath(), path(countries[0]), c.fill();
+					c.fillStyle = "#caa", c.beginPath(), path(countries[1]), c.fill();
+					c.strokeStyle = "#ddd", c.lineWidth = 1.0, c.beginPath(), path(borders), c.stroke();
+					c.strokeStyle = "#000", c.lineWidth = 2, c.beginPath(), path(globe), c.stroke();
+					cities[i].proLocation = projection(cities[i].location);
+					
+				}
+			})
+		}
+		var cityIndex = 0;
+		$("#city").click(function(){
+			cityIndex = (cityIndex + 1)%cities.length;
+			mytransition(cityIndex);
+		});
+		mytransition(0);
+		d3.select(self.frameElement).style("height", height + "px");/**/
+	});/**/	
+}
+</script>
